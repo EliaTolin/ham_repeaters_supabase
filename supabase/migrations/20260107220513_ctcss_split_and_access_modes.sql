@@ -1,21 +1,25 @@
--- Ricrea funzioni con p_access_modes e SETOF repeaters
+-- Ricrea funzioni con p_access_modes (case-insensitive) e SETOF repeaters
 
 -- Drop tutte le versioni esistenti
 drop function if exists public.repeaters_nearby(double precision, double precision, double precision, public.repeater_mode[]);
 drop function if exists public.repeaters_nearby(double precision, double precision, double precision, integer, public.repeater_mode[]);
+drop function if exists public.repeaters_nearby(double precision, double precision, double precision, integer, public.access_mode[]);
+drop function if exists public.repeaters_nearby(double precision, double precision, double precision, integer, text[]);
 drop function if exists public.repeaters_in_bounds(double precision, double precision, double precision, double precision, public.repeater_mode[]);
+drop function if exists public.repeaters_in_bounds(double precision, double precision, double precision, double precision, public.access_mode[]);
+drop function if exists public.repeaters_in_bounds(double precision, double precision, double precision, double precision, text[]);
 
 
 -- =========================================================
 -- repeaters_in_bounds - SETOF repeaters (dinamica)
--- Filtra per access_mode (es. DMR, C4FM, ANALOG, ecc.)
+-- Filtra per access_mode (case-insensitive: "analog", "ANALOG", "Analog" tutti validi)
 -- =========================================================
 create or replace function public.repeaters_in_bounds(
   p_lat1 double precision,
   p_lon1 double precision,
   p_lat2 double precision,
   p_lon2 double precision,
-  p_access_modes public.access_mode[] default null
+  p_access_modes text[] default null
 )
 returns setof public.repeaters
 language sql
@@ -41,7 +45,7 @@ as $$
       or exists (
         select 1 from public.repeater_access ra
         where ra.repeater_id = r.id
-          and ra.mode = any(p_access_modes)
+          and upper(ra.mode::text) = any(select upper(unnest) from unnest(p_access_modes))
       )
     );
 $$;
@@ -49,14 +53,14 @@ $$;
 
 -- =========================================================
 -- repeaters_nearby - (repeater record, distance_m) dinamica
--- Filtra per access_mode (es. DMR, C4FM, ANALOG, ecc.)
+-- Filtra per access_mode (case-insensitive: "analog", "ANALOG", "Analog" tutti validi)
 -- =========================================================
 create or replace function public.repeaters_nearby(
   p_lat double precision,
   p_lon double precision,
   p_radius_km double precision default 50,
   p_limit integer default 50,
-  p_access_modes public.access_mode[] default null
+  p_access_modes text[] default null
 )
 returns table (
   repeater public.repeaters,
@@ -86,7 +90,7 @@ begin
       or exists (
         select 1 from public.repeater_access ra
         where ra.repeater_id = r.id
-          and ra.mode = any(p_access_modes)
+          and upper(ra.mode::text) = any(select upper(unnest) from unnest(p_access_modes))
       )
     )
   order by distance_m
